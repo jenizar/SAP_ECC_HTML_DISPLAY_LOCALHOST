@@ -1,0 +1,46 @@
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+     <title>Sales Document Inquiry</title>
+     <meta charset="UTF-8" />
+<!-- Bootstrap -->
+ <link href="css/bootstrap.css" rel="stylesheet">
+ 
+<!-- Styles -->
+  <!-- <link href="css/style.css" rel="stylesheet">		 -->
+    </head>
+    <body>
+      <input type="text" id="so_number" placeholder="Enter Your Sales Order Number"/>
+      <button type="submit" onclick="sendRequest()"> SO Number Search </button>
+	<div id="search_results"></div>   
+    <script>
+    "use strict";
+    //Construct the script tag at Runtime
+    function requestServerCall(url) {
+      var head = document.head;
+      var script = document.createElement("script");
+      script.setAttribute("src", url);
+      head.appendChild(script);
+      head.removeChild(script);
+    }
+    //Predefined callback function    
+    function showAbapClasses(jsonAbap) {
+   //   alert(jsonAbap.hasil[0]['vbeln']); // Response data from the server
+var htmlString = "<br/><div><table class='table'><tr><td>Sales Doc.</td><td>Item</td><td>Material No.</td><td>Description</td><td>Amount</td><td>Currency</td></tr>";  
+ for (var i = 0; i < jsonAbap.hasil.length; i++) {  
+                htmlString += "<tr>" + "<td>" + jsonAbap.hasil[i]['vbeln'] + "</td>" + "<td>" + jsonAbap.hasil[i]['posnr'] + "</td>" + "<td>" +jsonAbap.hasil[i]['matnr'] + "</td>" + "<td>" + jsonAbap.hasil[i]['arktx'] + "</td>"  + "<td>" + jsonAbap.hasil[i]['netwr'] + "</td>" + "<td>" + jsonAbap.hasil[i]['waerk'];  
+            }  
+			htmlString += "</tr>" + "</td>" + "</table>" + "</div>";
+               document.getElementById("search_results").innerHTML = htmlString; 
+console.log(jsonAbap);
+    } 
+    //Reference to the input field
+    var so_number = document.getElementById("so_number");
+    //Send Request to Server
+    function sendRequest() {
+      // Edit with your Web Service URL
+      requestServerCall("http://idesec7.nubi.com:8000/sap/bc/zdemos/zvbap?sap-client=800&callback=showAbapClasses&q="+so_number.value+"");
+    }    
+  </script>
+   </body>
+   </html>

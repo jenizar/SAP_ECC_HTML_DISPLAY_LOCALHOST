@@ -1,0 +1,110 @@
+method IF_HTTP_EXTENSION~HANDLE_REQUEST.
+
+* SICF SubElement : zvbap
+
+ DATA: method   TYPE string,
+  query_string  TYPE string,
+  callback      TYPE string,
+  json_response TYPE string,
+  t_classname TYPE TABLE OF VBELN_VA,
+  r_classname TYPE RANGE OF VBELN_VA,
+  l_classname LIKE LINE OF r_classname,
+  l_lines LIKE sy-tfill.
+  FIELD-SYMBOLS: <classname> TYPE any.
+
+DATA: lo_json_data TYPE REF TO zcl_trex_json_serializer,
+      json  TYPE string,
+      json1 TYPE string.
+
+TYPES: BEGIN OF ty_vbap,
+         vbeln TYPE vbap-vbeln,
+         posnr TYPE vbap-posnr,
+         matnr TYPE vbap-matnr,
+         arktx TYPE vbap-arktx,
+         netwr TYPE vbap-netwr,
+         waerk TYPE vbap-waerk,
+       END OF ty_vbap.
+DATA: gi_header1 TYPE STANDARD TABLE OF ty_vbap.
+
+data: lt_vbap type ZTT_VBAP_JOHN.
+  data: lr_vbap type ref to data.
+
+  field-symbols: <lwa_vbap> type any.
+
+  field-symbols: <fs_VBAP_VBELN> type any.
+  field-symbols: <fs_VBAP_POSNR> type any.
+  field-symbols: <fs_VBAP_MATNR> type any.
+  field-symbols: <fs_VBAP_ARKTX> type any.
+  field-symbols: <fs_VBAP_NETWR> type any.
+  field-symbols: <fs_VBAP_WAERK> type any.
+
+" * ZST_VBAP_JOHN
+  CONSTANTS: C_VBAP_VBELN type string value 'VBELN'.
+  CONSTANTS: C_VBAP_POSNR type string value 'POSNR'.
+  CONSTANTS: C_VBAP_MATNR type string value 'MATNR'.
+  CONSTANTS: C_VBAP_ARKTX type string value 'ARKTX'.
+  CONSTANTS: C_VBAP_NETWR type string value 'NETWR'.
+  CONSTANTS: C_VBAP_WAERK type string value 'WAERK'.
+
+      create data lr_vbap like line of lt_vbap.
+      assign lr_vbap->* to <lwa_vbap>.
+
+  ASSIGN COMPONENT C_VBAP_VBELN OF STRUCTURE <lwa_vbap> TO <fs_VBAP_VBELN>.
+  ASSIGN COMPONENT C_VBAP_POSNR OF STRUCTURE <lwa_vbap> TO <fs_VBAP_POSNR>.
+  ASSIGN COMPONENT C_VBAP_MATNR OF STRUCTURE <lwa_vbap> TO <fs_VBAP_MATNR>.
+  ASSIGN COMPONENT C_VBAP_ARKTX OF STRUCTURE <lwa_vbap> TO <fs_VBAP_ARKTX>.
+  ASSIGN COMPONENT C_VBAP_NETWR OF STRUCTURE <lwa_vbap> TO <fs_VBAP_NETWR>.
+  ASSIGN COMPONENT C_VBAP_WAERK OF STRUCTURE <lwa_vbap> TO <fs_VBAP_WAERK>.
+
+  method = server->request->get_header_field( name = '~request_method' ).
+  query_string = server->request->GET_FORM_FIELD_CS( name = 'q' ).
+  callback = server->request->GET_FORM_FIELD_CS( name = 'callback' ).
+**method not allowed
+  IF method <> 'GET'.
+    server->response->set_status( code = '405' reason = 'You must use GET' ).
+    EXIT.
+  ENDIF.
+**bad request
+  IF query_string IS INITIAL.
+    server->response->set_status( code = '400' reason = 'Query String is initial' ).
+    EXIT.
+  ENDIF.
+  IF callback IS INITIAL.
+    server->response->set_status( code = '400' reason = 'Callback is initial' ).
+    EXIT.
+  ENDIF.
+**fill range
+  l_classname-sign = 'I'.
+  l_classname-low = query_string.
+  IF query_string CS '*'.
+    l_classname-option = 'CP'.
+  ELSE.
+    l_classname-option = 'EQ'.
+  ENDIF.
+  APPEND l_classname TO r_classname.
+**example -> max 25 rows
+  SELECT vbeln posnr matnr arktx netwr waerk INTO TABLE gi_header1 UP TO 25 ROWS FROM vbap
+                                             WHERE vbeln IN r_classname.
+CREATE OBJECT lo_json_data
+   EXPORTING
+     DATA = gi_header1.
+
+* serialize data
+   lo_json_data->serialize( ).
+
+* get serialized json data string
+   json = lo_json_data->get_data( ).
+
+CONCATENATE callback '({"hasil":' json '})' INTO json1 separated by space.
+
+     CALL METHOD server->response->set_header_field(
+     name = 'Content-Type'
+     value = 'text/html; charset=utf-8' "for text
+     ).
+
+* Set CORS access control to avoid browser policy restrictions around
+* Cross Domain communication
+*   CALL METHOD server->response->set_header_field( name = 'Access-Control-Allow-Origin' value = '*' ).
+
+  server->response->set_cdata( data = json1 ).
+endmethod.
